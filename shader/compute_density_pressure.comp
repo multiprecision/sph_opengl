@@ -1,0 +1,75 @@
+#version 450
+#extension GL_ARB_shading_language_420pack : enable
+
+#define M_PI_F 3.14159265358979323846f
+#define WORK_GROUP_SIZE 128
+
+layout (local_size_x = WORK_GROUP_SIZE) in;
+
+struct particle_t
+{
+   vec2 position;
+   vec2 velocity;
+   vec2 force;
+   float density;
+   float pressure;
+};
+
+layout(std430, binding = 0) buffer position_block
+{
+    particle_t particles[];
+};
+
+//constants
+const float particle_length = 0.005f;
+const float particle_mass = 0.8f * particle_length * particle_length * 1000;
+const float smoothing_radius = 4 * particle_length;
+const float resting_density = 1000;
+
+const float stiffness = 2000;
+
+const uint particle_count = 20000;
+
+float kernel_poly6(vec2 ra, float h)
+{
+    float r2 = ra.x * ra.x + ra.y * ra.y;
+    float h2 = h * h;
+    return 315.f * (pow(h2 - r2, 3)) / (64.f * M_PI_F * pow(h, 9));
+}
+
+// state equation based algorithm (SESPH)
+// foreach particle i do
+//   compute density;
+//   compute pressure;
+// foreach particle i do
+//   compute all forces;
+// foreach particle i do
+//   integrate;
+//   handle collision;
+void main()
+{
+    uint particle_index = gl_GlobalInvocationID.x;
+
+    if (particle_index >= particle_count)
+    {
+        return;
+	  }
+		
+		vec2 position_i = particles[particle_index].position;
+		
+	  // 1. compute density
+	  float density_sum = 0.f;
+		for (uint j = 0; j < particle_count; j++)
+		{
+		    vec2 position_j = particles[j].position;
+		    vec2 position_delta = position_i - position_j;
+		    if (length(position_delta) < smoothing_radius)
+        {
+            density_sum += particle_mass * kernel_poly6(position_delta, smoothing_radius);
+        }
+    }
+	  // write
+    particles[particle_index].density = density_sum;
+    // 2. compute pressure
+    particles[particle_index].pressure = max(stiffness * (density_sum - resting_density), 0.f);
+}

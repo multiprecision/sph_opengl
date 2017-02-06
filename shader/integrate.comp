@@ -1,0 +1,70 @@
+#version 450
+#extension GL_ARB_shading_language_420pack : enable
+
+#define M_PI_F 3.14159265358979323846f
+#define WORK_GROUP_SIZE 128
+
+layout (local_size_x = WORK_GROUP_SIZE) in;
+
+struct particle_t
+{
+   vec2 position;
+   vec2 velocity;
+   vec2 force;
+   float density;
+   float pressure;
+};
+
+layout(std430, binding = 0) buffer position_block
+{
+    particle_t particles[];
+};
+
+//constants
+const float time_step = 0.0001f;
+const float restitution_coefficient = 0.3f;
+
+const uint particle_count = 20000;
+
+void main()
+{
+    uint particle_index = gl_GlobalInvocationID.x;
+
+    if (particle_index >= particle_count)
+    {
+        return;
+	  }
+		
+    // 4. integrate
+		vec2 position_i = particles[particle_index].position;
+		vec2 velocity_i = particles[particle_index].velocity;
+		vec2 force_i = particles[particle_index].force;
+		float density_i = particles[particle_index].density;
+    vec2 new_velocity = velocity_i + time_step * force_i / density_i;
+    vec2 new_position = position_i + time_step * new_velocity;
+
+    // 5. handle simple collision
+		if (new_position.x < -1)
+		{
+		    new_position.x = -1;
+		    new_velocity.x *= -1 * restitution_coefficient;
+		}
+		else if (new_position.x > 1)
+		{
+		    new_position.x = 1;
+		    new_velocity.x *= -1 * restitution_coefficient;
+		}
+		else if (new_position.y < -1)
+		{
+		    new_position.y = -1;
+		    new_velocity.y *= -1 * restitution_coefficient;
+		}
+		else if (new_position.y > 1)
+		{
+		    new_position.y = 1;
+		    new_velocity.y *= -1 * restitution_coefficient;
+		}    
+		// write
+		particles[particle_index].velocity = new_velocity;
+		particles[particle_index].position = new_position;
+}
