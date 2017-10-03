@@ -319,15 +319,16 @@ void application::main_loop()
 
     frame_start = std::chrono::steady_clock::now();
 
-    //{ CPU region
-    glfwPollEvents();
-    //}
+    // CPU region
+    {
+        glfwPollEvents();
+    }
     cpu_end = std::chrono::steady_clock::now();
-    //{ GPU region
-    invoke_compute_shader();
-
-    render();
-    //}
+    // GPU region
+    {
+        invoke_compute_shader();
+        render();
+    }
 
     // measure performance
     frame_end = std::chrono::steady_clock::now();

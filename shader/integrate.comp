@@ -6,65 +6,55 @@
 
 layout (local_size_x = WORK_GROUP_SIZE) in;
 
-struct particle_t
+struct particle_type
 {
-   vec2 position;
-   vec2 velocity;
-   vec2 force;
-   float density;
-   float pressure;
+    vec2 position;
+    vec2 velocity;
+    vec2 force;
+    float density;
+    float pressure;
 };
 
 layout(std430, binding = 0) buffer position_block
 {
-    particle_t particles[];
+    particle_type particles[];
 };
 
-//constants
+// constants
 const float time_step = 0.0001f;
 const float restitution_coefficient = 0.3f;
-
 const uint particle_count = 20000;
 
 void main()
 {
-    uint particle_index = gl_GlobalInvocationID.x;
+    uint i = gl_GlobalInvocationID.x;
 
-    if (particle_index >= particle_count)
-    {
-        return;
-	  }
-		
     // 4. integrate
-		vec2 position_i = particles[particle_index].position;
-		vec2 velocity_i = particles[particle_index].velocity;
-		vec2 force_i = particles[particle_index].force;
-		float density_i = particles[particle_index].density;
-    vec2 new_velocity = velocity_i + time_step * force_i / density_i;
-    vec2 new_position = position_i + time_step * new_velocity;
+    vec2 new_velocity = particles[i].velocity + time_step * particles[i].force / particles[i].density;
+    vec2 new_position = particles[i].position + time_step * new_velocity;
 
-    // 5. handle simple collision
-		if (new_position.x < -1)
-		{
-		    new_position.x = -1;
-		    new_velocity.x *= -1 * restitution_coefficient;
-		}
-		else if (new_position.x > 1)
-		{
-		    new_position.x = 1;
-		    new_velocity.x *= -1 * restitution_coefficient;
-		}
-		else if (new_position.y < -1)
-		{
-		    new_position.y = -1;
-		    new_velocity.y *= -1 * restitution_coefficient;
-		}
-		else if (new_position.y > 1)
-		{
-		    new_position.y = 1;
-		    new_velocity.y *= -1 * restitution_coefficient;
-		}    
-		// write
-		particles[particle_index].velocity = new_velocity;
-		particles[particle_index].position = new_position;
+    // 5. handle collision
+    if (new_position.x < -1)
+    {
+        new_position.x = -1;
+        new_velocity.x *= -1 * restitution_coefficient;
+    }
+    else if (new_position.x > 1)
+    {
+        new_position.x = 1;
+        new_velocity.x *= -1 * restitution_coefficient;
+    }
+    else if (new_position.y < -1)
+    {
+        new_position.y = -1;
+        new_velocity.y *= -1 * restitution_coefficient;
+    }
+    else if (new_position.y > 1)
+    {
+        new_position.y = 1;
+        new_velocity.y *= -1 * restitution_coefficient;
+    }
+    // write the results
+    particles[i].velocity = new_velocity;
+    particles[i].position = new_position;
 }
