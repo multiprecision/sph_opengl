@@ -1,10 +1,23 @@
 #version 450
 #extension GL_ARB_shading_language_420pack : enable
 
-#define M_PI_F 3.14159265358979323846f
 #define WORK_GROUP_SIZE 128
 
 layout (local_size_x = WORK_GROUP_SIZE) in;
+
+// constants
+#define PI_FLOAT 3.1415927410125732421875f
+#define PARTICLE_RADIUS 0.005f
+#define PARTICLE_MASS (0.8f * PARTICLE_RADIUS * PARTICLE_RADIUS * 1000)
+#define SMOOTHING_LENGTH (4 * PARTICLE_RADIUS)
+#define PARTICLE_RESTING_DENSITY 1000
+#define PARTICLE_STIFFNESS 2000
+#define PARTICLE_COUNT 20000
+
+// OpenGL y-axis is pointing up, while Vulkan y-axis is pointing down.
+// So in OpenGL this should be negative, but in Vulkan this should be positive.
+#define GRAVITY_FORCE vec2(0, -12000)
+#define PARTICLE_VISCOSITY 3000.f
 
 struct particle_type
 {
@@ -20,30 +33,6 @@ layout(std430, binding = 0) buffer position_block
     particle_type particles[];
 };
 
-// constants
-const float particle_length = 0.005f;
-const float particle_mass = 0.8f * particle_length * particle_length * 1000;
-const float smoothing_radius = 4 * particle_length;
-const float viscosity = 3000.f;
-// OpenGL y-axis is pointing up, while Vulkan y-axis is pointing down.
-// So in OpenGL this should be negative, but in Vulkan this should be positive.
-const vec2 gravity = vec2(0, -12000);
-const uint particle_count = 20000;
-
-vec2 kernel_spiky_d1(vec2 ra, float h)
-{
-    float r = length(ra);
-    float term1 = -45.f / (M_PI_F * pow(h, 6));
-    float term2 = pow(h - r, 2);
-    vec2 term3 = normalize(ra);
-    return term1 * term2 * term3;
-}
-
-float kernel_viscosity_d2(vec2 ra, float h)
-{
-    float r = length(ra);
-    return 45.f / (M_PI_F * pow(h, 6)) * (h - r);
-}
 
 void main()
 {
@@ -52,21 +41,26 @@ void main()
     vec2 pressure_force = vec2(0, 0);
     vec2 viscosity_force = vec2(0, 0);
     
-    for (uint j = 0; j < particle_count; j++)
+    for (uint j = 0; j < PARTICLE_COUNT; j++)
     {
         if (i == j)
         {
             continue;
         }
-        vec2 h = particles[i].position - particles[j].position;
-        if (length(h) < smoothing_radius)
+        vec2 delta = particles[i].position - particles[j].position;
+        float r = length(delta);
+        if (r < SMOOTHING_LENGTH)
         {
-            pressure_force += -particle_mass * (particles[i].pressure + particles[j].pressure) / (2.f * particles[j].density) * kernel_spiky_d1(h, smoothing_radius);
-            viscosity_force += particle_mass * (particles[j].velocity - particles[i].velocity) / particles[j].density * kernel_viscosity_d2(h, smoothing_radius);
+            pressure_force -= PARTICLE_MASS * (particles[i].pressure + particles[j].pressure) / (2.f * particles[j].density) *
+            // gradient of spiky kernel
+                -45.f / (PI_FLOAT * pow(SMOOTHING_LENGTH, 6)) * pow(SMOOTHING_LENGTH - r, 2) * normalize(delta);
+            viscosity_force += PARTICLE_MASS * (particles[j].velocity - particles[i].velocity) / particles[j].density *
+            // Laplacian of viscosity kernel
+                45.f / (PI_FLOAT * pow(SMOOTHING_LENGTH, 6)) * (SMOOTHING_LENGTH - r);
         }
     }
-    vec2 external_force = particles[i].density * gravity;
-    viscosity_force *= viscosity;
+    vec2 external_force = particles[i].density * GRAVITY_FORCE;
+    viscosity_force *= PARTICLE_VISCOSITY;
     // write results
     particles[i].force = pressure_force + viscosity_force + external_force;
 }
