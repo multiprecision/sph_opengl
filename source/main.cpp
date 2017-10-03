@@ -4,11 +4,11 @@
  */
 
 #include "application.hpp"
-#include <exception>
-#include <iostream>
+#include <algorithm>
 
-int main()
+int main(int argc, char** argv)
 {
-    sph::application application;
-    application.run();
+    // use alternate scene if "-a" is specified in the command line argument
+    sph::application app((std::find(argv, argv + argc, std::string("-a")) != argv + argc) ? 1 : 0);
+    app.run();
 }

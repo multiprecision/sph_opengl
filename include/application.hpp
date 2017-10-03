@@ -17,20 +17,25 @@
 #include <cstdint>
 #include <string>
 
+// constants
+#define SPH_PARTICLE_RADIUS 0.005f
+#define SPH_TIME_STEP 0.0001f
+#define SPH_PARTICLE_COUNT 20000
+
+#define SPH_WORK_GROUP_SIZE 128
+// work group count is the ceiling of particle count divided by work group size
+#define SPH_GROUP_COUNT ((SPH_PARTICLE_COUNT + SPH_WORK_GROUP_SIZE - 1) / SPH_WORK_GROUP_SIZE)
+
 namespace sph
 {
-//constants
-const float particle_length = 0.005f;
-const float time_step = 0.0001f;
-const size_t particle_count = 20000;
 
-const size_t work_group_size = 128;
-const uint32_t group_count = (size_t)std::ceil((float)particle_count / work_group_size);
 
 class application
 {
 public:
     application();
+    explicit application(int64_t scene_id);
+    application(const application&) = delete;
     ~application();
     void run();
 
@@ -42,7 +47,7 @@ private:
     GLuint compile_shader(std::string path_to_file, GLenum shader_type);
     void check_program_linked(GLuint shader_program_handle);
     void main_loop();
-    void invoke_compute_shader();
+    void step_forward();
     void render();
 
     GLFWwindow* window = nullptr;
@@ -50,21 +55,22 @@ private:
     uint64_t window_length = 1000;
 
     std::chrono::steady_clock::time_point frame_start;
-    std::chrono::steady_clock::time_point cpu_end;
     std::chrono::steady_clock::time_point frame_end;
 
-    uint64_t frame_number = 0;
-    float frame_time = 0;
-    float cpu_time = 0;
-    float gpu_time = 0;
+    uint64_t frame_number = 1;
+    double frame_time = 0;
+
+    bool paused = false;
+
+    int64_t scene_id = 0;
 
     // opengl
     uint32_t particle_position_vao_handle = 0;
     uint32_t render_program_handle = 0;
-    uint32_t compute_program_handle[3] = {0, 0, 0};
+    uint32_t compute_program_handle[3] {0, 0, 0};
     uint32_t particle_buffer_handle = 0;
 
-    struct particle_t
+    struct particle_type
     {
         glm::vec2 position;
         glm::vec2 velocity;

@@ -29,11 +29,11 @@ void main()
 {
     uint i = gl_GlobalInvocationID.x;
 
-    // 4. integrate
+    // integrate
     vec2 new_velocity = particles[i].velocity + TIME_STEP * particles[i].force / particles[i].density;
     vec2 new_position = particles[i].position + TIME_STEP * new_velocity;
 
-    // 5. handle collision
+    // handle collision
     if (new_position.x < -1)
     {
         new_position.x = -1;
