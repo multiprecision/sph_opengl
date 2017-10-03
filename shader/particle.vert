@@ -11,6 +11,6 @@ out gl_PerVertex
 void main ()
 {
     gl_Position = vec4(position.x, position.y, 0, 1);
-    gl_PointSize = 3;
+    gl_PointSize = 5;
 }
     
