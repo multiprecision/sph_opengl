@@ -1,20 +1,22 @@
-#version 450
-#extension GL_ARB_shading_language_420pack : enable
+#version 460
 
 #define WORK_GROUP_SIZE 128
 
 layout (local_size_x = WORK_GROUP_SIZE) in;
 
 // constants
-#define PI_FLOAT 3.1415927410125732421875f
-#define PARTICLE_RADIUS 0.005f
-#define PARTICLE_MASS (0.8f * PARTICLE_RADIUS * PARTICLE_RADIUS * 1000)
-#define SMOOTHING_LENGTH (4 * PARTICLE_RADIUS)
-#define PARTICLE_RESTING_DENSITY 1000
-#define PARTICLE_STIFFNESS 2000
 #define PARTICLE_COUNT 20000
 
-struct particle_type
+#define PI_FLOAT 3.1415927410125732421875f
+#define PARTICLE_RADIUS 0.005f
+#define PARTICLE_RESTING_DENSITY 1000
+// Mass = Density * Volume
+#define PARTICLE_MASS 0.02
+#define SMOOTHING_LENGTH (4 * PARTICLE_RADIUS)
+
+#define PARTICLE_STIFFNESS 2000
+
+struct particle
 {
     vec2 position;
     vec2 velocity;
@@ -23,9 +25,9 @@ struct particle_type
     float pressure;
 };
 
-layout(std430, binding = 0) buffer position_block
+layout(std430, binding = 0) buffer particles_block
 {
-    particle_type particles[];
+    particle particles[];
 };
 
 void main()

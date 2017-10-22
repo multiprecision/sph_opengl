@@ -9,12 +9,10 @@
 #include <string>
 #include <algorithm>
 #include <exception>
-
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#include <vector>
-
+#include <iomanip>
 #include <thread>
 
 #ifdef _DEBUG
@@ -97,8 +95,8 @@ void APIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum se
     }
     std::cout << "[" << source_str << "][" << type_str << "][" << id << "][" << severity_str << "] " << msg << std::endl;
 }
-
 #endif
+
 namespace sph
 {
 
@@ -148,8 +146,8 @@ void application::run()
     std::thread(
         [this]()
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(20000));
-            std::cout << "[INFO] frame count after 20 seconds after setup (do not pause or move the window): " << frame_number << std::endl;
+            std::this_thread::sleep_for(std::chrono::seconds(20));
+            std::cout << "[INFO] frame count after 20 seconds: " << frame_number << std::endl;
         }
     ).detach();
 
@@ -165,19 +163,18 @@ void application::initialize_window()
     {
         throw std::runtime_error("glfw initialization failed");
     }
- #ifdef _DEBUG
+#ifdef _DEBUG
     glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, GL_TRUE);
- #endif
+#endif
     window = glfwCreateWindow(1000, 1000, "", nullptr, nullptr);
     if (!window)
     {
         glfwTerminate();
         throw std::runtime_error("window creation failed");
     }
-    glfwSetWindowPos(window, 0, 0);
     glfwMakeContextCurrent(window);
     glfwSwapInterval(0); // set vertical sync off
-    // pass Application pointer to the callback using GLFW user pointer
+                            // pass Application pointer to the callback using GLFW user pointer
     glfwSetWindowUserPointer(window, reinterpret_cast<void*>(this));
     // set key callback
     auto key_callback = [](GLFWwindow* window, int key, int scancode, int action, int mode)
@@ -199,9 +196,10 @@ void application::initialize_window()
 void application::initialize_opengl()
 {
     glewInit();
-    if(!glewIsSupported("GL_VERSION_4_5"))
+
+    if (!glewIsSupported("GL_VERSION_4_6"))
     {
-        throw std::runtime_error("need opengl 4.5 core");
+        throw std::runtime_error("need opengl 4.6 core");
     }
 
     // get version info 
@@ -215,8 +213,8 @@ void application::initialize_opengl()
 #endif
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
-    uint32_t vertex_shader_handle = compile_shader("../shader/particle.vert", GL_VERTEX_SHADER);
-    uint32_t fragment_shader_handle = compile_shader("../shader/particle.frag", GL_FRAGMENT_SHADER);
+    uint32_t vertex_shader_handle = compile_shader("../shader/particle.vert.spv", GL_VERTEX_SHADER);
+    uint32_t fragment_shader_handle = compile_shader("../shader/particle.frag.spv", GL_FRAGMENT_SHADER);
     render_program_handle = glCreateProgram();
     glAttachShader(render_program_handle, fragment_shader_handle);
     glAttachShader(render_program_handle, vertex_shader_handle);
@@ -227,30 +225,30 @@ void application::initialize_opengl()
     glDeleteShader(fragment_shader_handle);
 
     uint32_t compute_shader_handle;
-    compute_shader_handle = compile_shader("../shader/compute_density_pressure.comp", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("../shader/compute_density_pressure.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[0] = glCreateProgram();
     glAttachShader(compute_program_handle[0], compute_shader_handle);
     glLinkProgram(compute_program_handle[0]);
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    compute_shader_handle = compile_shader("../shader/compute_force.comp", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("../shader/compute_force.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[1] = glCreateProgram();
     glAttachShader(compute_program_handle[1], compute_shader_handle);
     glLinkProgram(compute_program_handle[1]);
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    compute_shader_handle = compile_shader("../shader/integrate.comp", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("../shader/integrate.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[2] = glCreateProgram();
     glAttachShader(compute_program_handle[2], compute_shader_handle);
     glLinkProgram(compute_program_handle[2]);
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    particle_type initial_particle_data[SPH_PARTICLE_COUNT];
+    std::vector<particle> initial_particle_data(SPH_PARTICLE_COUNT);
     // initialize to zero
-    std::memset(initial_particle_data, 0, sizeof(particle_type) * SPH_PARTICLE_COUNT);
+    std::memset(initial_particle_data.data(), 0, sizeof(particle) * SPH_PARTICLE_COUNT);
 
     // test case 1
     if (scene_id == 0)
@@ -284,15 +282,14 @@ void application::initialize_opengl()
     }
     glGenBuffers(1, &particle_buffer_handle);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, particle_buffer_handle);
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, sizeof(particle_type) * SPH_PARTICLE_COUNT, initial_particle_data, GL_MAP_READ_BIT);
-
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, sizeof(particle) * SPH_PARTICLE_COUNT, initial_particle_data.data(), GL_DYNAMIC_STORAGE_BIT);
 
     glGenVertexArrays(1, &particle_position_vao_handle);
     glBindVertexArray(particle_position_vao_handle);
 
     glBindBuffer(GL_ARRAY_BUFFER, particle_buffer_handle);
     // bind buffer containing particle position to vao, stride is sizeof(particle_t)
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(particle_type), nullptr);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(particle), nullptr);
     // enable attribute with binding = 0 (vertex position in the shader) for this vao
     glEnableVertexAttribArray(0);
 
@@ -316,9 +313,9 @@ void application::check_program_linked(GLuint shader_program_handle)
         std::vector<GLchar> log(len);
         glGetProgramInfoLog(shader_program_handle, len, &len, &log[0]);
 
-        for (auto c : log)
+        for (const auto& el : log)
         {
-            std::cout << c;
+            std::cout << el;
         }
         throw std::runtime_error("shader link error");
     }
@@ -328,24 +325,22 @@ void application::check_program_linked(GLuint shader_program_handle)
 GLuint application::compile_shader(std::string path_to_file, GLenum shader_type)
 {
     GLuint shader_handle = 0;
+
     std::ifstream shader_file(path_to_file, std::ios::ate | std::ios::binary);
     if (!shader_file)
     {
         throw std::runtime_error("shader file load error");
     }
-    size_t shader_file_size = static_cast<size_t>(shader_file.tellg());
+    size_t shader_file_size = (size_t)shader_file.tellg();
     std::vector<char> shader_code(shader_file_size);
     shader_file.seekg(0);
     shader_file.read(shader_code.data(), shader_file_size);
     shader_file.close();
-    // must be NUL terminated
-    shader_code.push_back('\0');
 
-    char* shader_code_ptr = shader_code.data();
     shader_handle = glCreateShader(shader_type);
-    glShaderSource(shader_handle, 1, &shader_code_ptr, NULL);
-    glCompileShader(shader_handle);
 
+    glShaderBinary(1, &shader_handle, GL_SHADER_BINARY_FORMAT_SPIR_V_ARB, shader_code.data(), static_cast<GLsizei>(shader_code.size()));
+    glSpecializeShader(shader_handle, "main", 0, nullptr, nullptr);
     int32_t is_compiled = 0;
     glGetShaderiv(shader_handle, GL_COMPILE_STATUS, &is_compiled);
     if (is_compiled == GL_FALSE)
@@ -354,9 +349,9 @@ GLuint application::compile_shader(std::string path_to_file, GLenum shader_type)
         glGetShaderiv(shader_handle, GL_INFO_LOG_LENGTH, &len);
         std::vector<GLchar> log(len);
         glGetShaderInfoLog(shader_handle, len, &len, &log[0]);
-        for (auto c : log)
+        for (const auto& el : log)
         {
-            std::cout << c;
+            std::cout << el;
         }
         throw std::runtime_error("shader compile error");
     }
@@ -365,8 +360,11 @@ GLuint application::compile_shader(std::string path_to_file, GLenum shader_type)
 
 void application::main_loop()
 {
+    static std::chrono::high_resolution_clock::time_point frame_start;
+    static std::chrono::high_resolution_clock::time_point frame_end;
+    static int64_t total_frame_time_ns;
 
-    frame_start = std::chrono::steady_clock::now();
+    frame_start = std::chrono::high_resolution_clock::now();
 
     // process user inputs
     glfwPollEvents();
@@ -375,36 +373,41 @@ void application::main_loop()
     if (!paused)
     {
         step_forward();
+        frame_number++;
     }
 
     render();
 
-    // measure performance
-    frame_end = std::chrono::steady_clock::now();
-    frame_time = std::chrono::duration_cast<std::chrono::duration<double>>(frame_end - frame_start).count();
-    std::stringstream ss;
-    ss.precision(3);
-    ss.setf(std::ios_base::fixed, std::ios_base::floatfield);
-    ss << "SPH Simulation (OpenGL) | frame " << frame_number << " | t: " << SPH_TIME_STEP * frame_number << " | frame time: " << frame_time * 1000 << " ms | particle count: " << SPH_PARTICLE_COUNT;
-    glfwSetWindowTitle(window, ss.str().c_str());
+    glfwSwapBuffers(window);
 
-    if (!paused)
-    {
-        frame_number++;
-    }
+    frame_end = std::chrono::high_resolution_clock::now();
+
+    // measure performance
+    total_frame_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(frame_end - frame_start).count();
+
+    std::stringstream title;
+    title.precision(3);
+    title.setf(std::ios_base::fixed, std::ios_base::floatfield);
+    title << "SPH Simulation (OpenGL) | "
+        "particle count: " << SPH_PARTICLE_COUNT << " | "
+        "frame " << frame_number << " | "
+        "frame time: " << 1e-6 * total_frame_time_ns << " ms | ";
+    glfwSetWindowTitle(window, title.str().c_str());
 }
 
 void application::step_forward()
 {
-
-    for (size_t i = 0; i < 3; i++)
-    {
-        glUseProgram(compute_program_handle[i]);
-        glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 1, &particle_buffer_handle);
-        glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-    }
+    glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 1, &particle_buffer_handle);
+    glUseProgram(compute_program_handle[0]);
+    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glUseProgram(compute_program_handle[1]);
+    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glUseProgram(compute_program_handle[2]);
+    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void application::render()
@@ -414,9 +417,6 @@ void application::render()
     glBindVertexArray(particle_position_vao_handle);
     glDrawArrays(GL_POINTS, 0, SPH_PARTICLE_COUNT); // draw particle as points
     glBindVertexArray(0);
-
-    glfwSwapBuffers(window);
-
 }
 
 } // namespace sph

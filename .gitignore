@@ -58,3 +58,6 @@ ipch/
 
 ## exclude third-party libraries
 !/third-party/**
+
+# SPIR-V
+*.spv

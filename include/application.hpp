@@ -16,11 +16,14 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <atomic>
+#include <mutex>
+#include <vector>
 
 // constants
-#define SPH_PARTICLE_RADIUS 0.005f
-#define SPH_TIME_STEP 0.0001f
 #define SPH_PARTICLE_COUNT 20000
+
+#define SPH_PARTICLE_RADIUS 0.005f
 
 #define SPH_WORK_GROUP_SIZE 128
 // work group count is the ceiling of particle count divided by work group size
@@ -29,6 +32,15 @@
 namespace sph
 {
 
+
+struct particle
+{
+    glm::vec2 position;
+    glm::vec2 velocity;
+    glm::vec2 force;
+    float density;
+    float pressure;
+};
 
 class application
 {
@@ -54,11 +66,7 @@ private:
     uint64_t window_height = 1000;
     uint64_t window_length = 1000;
 
-    std::chrono::steady_clock::time_point frame_start;
-    std::chrono::steady_clock::time_point frame_end;
-
-    uint64_t frame_number = 1;
-    double frame_time = 0;
+    std::atomic_uint64_t frame_number = 1;
 
     bool paused = false;
 
@@ -69,16 +77,6 @@ private:
     uint32_t render_program_handle = 0;
     uint32_t compute_program_handle[3] {0, 0, 0};
     uint32_t particle_buffer_handle = 0;
-
-    struct particle_type
-    {
-        glm::vec2 position;
-        glm::vec2 velocity;
-        glm::vec2 force;
-        float density;
-        float pressure;
-    };
-
 };
 
 } // namespace sph
