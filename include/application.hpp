@@ -32,16 +32,6 @@
 namespace sph
 {
 
-
-struct particle
-{
-    glm::vec2 position;
-    glm::vec2 velocity;
-    glm::vec2 force;
-    float density;
-    float pressure;
-};
-
 class application
 {
 public:
@@ -59,7 +49,7 @@ private:
     GLuint compile_shader(std::string path_to_file, GLenum shader_type);
     void check_program_linked(GLuint shader_program_handle);
     void main_loop();
-    void step_forward();
+    void run_simulation();
     void render();
 
     GLFWwindow* window = nullptr;
@@ -76,7 +66,7 @@ private:
     uint32_t particle_position_vao_handle = 0;
     uint32_t render_program_handle = 0;
     uint32_t compute_program_handle[3] {0, 0, 0};
-    uint32_t particle_buffer_handle = 0;
+    uint32_t packed_particles_buffer_handle = 0;
 };
 
 } // namespace sph

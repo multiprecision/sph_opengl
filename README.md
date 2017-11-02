@@ -10,9 +10,10 @@ Third-party libraries:
 2. GLFW https://github.com/glfw/glfw
 3. GLM https://github.com/g-truc/glm
 
-Video: 
+Video:
 
-https://www.youtube.com/watch?v=5Fqwm_mvMzA
+https://www.youtube.com/watch?v=4LnaZmim81k
 
-Vulkan version: 
+Vulkan version:
+
 https://github.com/multiprecision/sph_vulkan

@@ -8,20 +8,31 @@ layout (local_size_x = WORK_GROUP_SIZE) in;
 #define PARTICLE_COUNT 20000
 
 #define TIME_STEP 0.0001f
-#define RESTITUTION_COEFFICIENT 0.3f
+#define WALL_DAMPING 0.3f
 
-struct particle
+layout(std430, binding = 0) buffer position_block
 {
-    vec2 position;
-    vec2 velocity;
-    vec2 force;
-    float density;
-    float pressure;
+    vec2 position[];
 };
 
-layout(std430, binding = 0) buffer particles_block
+layout(std430, binding = 1) buffer velocity_block
 {
-    particle particles[];
+    vec2 velocity[];
+};
+
+layout(std430, binding = 2) buffer force_block
+{
+    vec2 force[];
+};
+
+layout(std430, binding = 3) buffer density_block
+{
+    float density[];
+};
+
+layout(std430, binding = 4) buffer pressure_block
+{
+    float pressure[];
 };
 
 void main()
@@ -29,32 +40,32 @@ void main()
     uint i = gl_GlobalInvocationID.x;
 
     // integrate
-    vec2 acceleration = particles[i].force / particles[i].density;
-    vec2 velocity = particles[i].velocity + TIME_STEP * acceleration;
-    vec2 position = particles[i].position + TIME_STEP * velocity;
+    vec2 acceleration = force[i] / density[i];
+    vec2 new_velocity = velocity[i] + TIME_STEP * acceleration;
+    vec2 new_position = position[i] + TIME_STEP * new_velocity;
 
-    // handle collision
-    if (position.x < -1)
+    // boundary conditions
+    if (new_position.x < -1)
     {
-        position.x = -1;
-        velocity.x *= -1 * RESTITUTION_COEFFICIENT;
+        new_position.x = -1;
+        new_velocity.x *= -1 * WALL_DAMPING;
     }
-    else if (position.x > 1)
+    else if (new_position.x > 1)
     {
-        position.x = 1;
-        velocity.x *= -1 * RESTITUTION_COEFFICIENT;
+        new_position.x = 1;
+        new_velocity.x *= -1 * WALL_DAMPING;
     }
-    else if (position.y < -1)
+    else if (new_position.y < -1)
     {
-        position.y = -1;
-        velocity.y *= -1 * RESTITUTION_COEFFICIENT;
+        new_position.y = -1;
+        new_velocity.y *= -1 * WALL_DAMPING;
     }
-    else if (position.y > 1)
+    else if (new_position.y > 1)
     {
-        position.y = 1;
-        velocity.y *= -1 * RESTITUTION_COEFFICIENT;
+        new_position.y = 1;
+        new_velocity.y *= -1 * WALL_DAMPING;
     }
 
-    particles[i].velocity = velocity;
-    particles[i].position = position;
+    velocity[i] = new_velocity;
+    position[i] = new_position;
 }

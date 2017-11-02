@@ -136,7 +136,7 @@ void application::destroy_opengl()
     glDeleteProgram(compute_program_handle[2]);
 
     glDeleteVertexArrays(1, &particle_position_vao_handle);
-    glDeleteBuffers(1, &particle_buffer_handle);
+    glDeleteBuffers(1, &packed_particles_buffer_handle);
 
 }
 
@@ -246,17 +246,15 @@ void application::initialize_opengl()
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    std::vector<particle> initial_particle_data(SPH_PARTICLE_COUNT);
-    // initialize to zero
-    std::memset(initial_particle_data.data(), 0, sizeof(particle) * SPH_PARTICLE_COUNT);
+    std::vector<glm::vec2> initial_position(SPH_PARTICLE_COUNT);
 
     // test case 1
     if (scene_id == 0)
     {
         for (auto i = 0, x = 0, y = 0; i < SPH_PARTICLE_COUNT; i++)
         {
-            initial_particle_data[i].position.x = -0.625f + SPH_PARTICLE_RADIUS * 2 * x;
-            initial_particle_data[i].position.y = 1 - SPH_PARTICLE_RADIUS * 2 * y;
+            initial_position[i].x = -0.625f + SPH_PARTICLE_RADIUS * 2 * x;
+            initial_position[i].y = 1 - SPH_PARTICLE_RADIUS * 2 * y;
             x++;
             if (x >= 125)
             {
@@ -270,8 +268,8 @@ void application::initialize_opengl()
     {
         for (auto i = 0, x = 0, y = 0; i < SPH_PARTICLE_COUNT; i++)
         {
-            initial_particle_data[i].position.x = -1 + SPH_PARTICLE_RADIUS * 2 * x;
-            initial_particle_data[i].position.y = -1 + SPH_PARTICLE_RADIUS * 2 * y;
+            initial_position[i].x = -1 + SPH_PARTICLE_RADIUS * 2 * x;
+            initial_position[i].y = -1 + SPH_PARTICLE_RADIUS * 2 * y;
             x++;
             if (x >= 100)
             {
@@ -280,25 +278,45 @@ void application::initialize_opengl()
             }
         }
     }
-    glGenBuffers(1, &particle_buffer_handle);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, particle_buffer_handle);
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, sizeof(particle) * SPH_PARTICLE_COUNT, initial_particle_data.data(), GL_DYNAMIC_STORAGE_BIT);
+    void* initial_data = std::malloc(3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT);
+    std::memset(initial_data, 0, 3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT);
+    std::memcpy(initial_data, initial_position.data(), sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
+    glGenBuffers(1, &packed_particles_buffer_handle);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, packed_particles_buffer_handle);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, 3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT, initial_data, GL_DYNAMIC_STORAGE_BIT);
+    std::free(initial_data);
 
     glGenVertexArrays(1, &particle_position_vao_handle);
     glBindVertexArray(particle_position_vao_handle);
 
-    glBindBuffer(GL_ARRAY_BUFFER, particle_buffer_handle);
-    // bind buffer containing particle position to vao, stride is sizeof(particle_t)
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(particle), nullptr);
+    glBindBuffer(GL_ARRAY_BUFFER, packed_particles_buffer_handle);
+    // bind buffer containing particle position to vao, stride is 0
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     // enable attribute with binding = 0 (vertex position in the shader) for this vao
     glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
 
-    glBindVertexArray(0); // release
+    // offsets
+    constexpr ptrdiff_t position_offset = 0;
+    constexpr ptrdiff_t velocity_offset = sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
+    constexpr ptrdiff_t force_offset = velocity_offset + sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
+    constexpr ptrdiff_t density_offset = force_offset + sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
+    constexpr ptrdiff_t pressure_offset = density_offset + sizeof(float) * SPH_PARTICLE_COUNT;
+
+    // bindings
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, packed_particles_buffer_handle, position_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, packed_particles_buffer_handle, velocity_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, packed_particles_buffer_handle, force_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 3, packed_particles_buffer_handle, density_offset, sizeof(float) * SPH_PARTICLE_COUNT);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 4, packed_particles_buffer_handle, pressure_offset, sizeof(float) * SPH_PARTICLE_COUNT);
+
+    glBindVertexArray(particle_position_vao_handle);
 
     // set clear color
     glClearColor(0.92f, 0.92f, 0.92f, 1.f);
+
 }
 
 
@@ -372,7 +390,7 @@ void application::main_loop()
     // step through the simulation if not paused
     if (!paused)
     {
-        step_forward();
+        run_simulation();
         frame_number++;
     }
 
@@ -395,9 +413,8 @@ void application::main_loop()
     glfwSetWindowTitle(window, title.str().c_str());
 }
 
-void application::step_forward()
+void application::run_simulation()
 {
-    glBindBuffersBase(GL_SHADER_STORAGE_BUFFER, 0, 1, &particle_buffer_handle);
     glUseProgram(compute_program_handle[0]);
     glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
@@ -407,16 +424,13 @@ void application::step_forward()
     glUseProgram(compute_program_handle[2]);
     glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 void application::render()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(render_program_handle);
-    glBindVertexArray(particle_position_vao_handle);
-    glDrawArrays(GL_POINTS, 0, SPH_PARTICLE_COUNT); // draw particle as points
-    glBindVertexArray(0);
+    glDrawArrays(GL_POINTS, 0, SPH_PARTICLE_COUNT);
 }
 
 } // namespace sph

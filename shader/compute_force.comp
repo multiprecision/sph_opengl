@@ -20,18 +20,29 @@ layout (local_size_x = WORK_GROUP_SIZE) in;
 // So in OpenGL this is negative, but in Vulkan this is positive.
 #define GRAVITY_FORCE vec2(0, -9806.65)
 
-struct particle
+layout(std430, binding = 0) buffer position_block
 {
-    vec2 position;
-    vec2 velocity;
-    vec2 force;
-    float density;
-    float pressure;
+    vec2 position[];
 };
 
-layout(std430, binding = 0) buffer particles_block
+layout(std430, binding = 1) buffer velocity_block
 {
-    particle particles[];
+    vec2 velocity[];
+};
+
+layout(std430, binding = 2) buffer force_block
+{
+    vec2 force[];
+};
+
+layout(std430, binding = 3) buffer density_block
+{
+    float density[];
+};
+
+layout(std430, binding = 4) buffer pressure_block
+{
+    float pressure[];
 };
 
 void main()
@@ -47,20 +58,20 @@ void main()
         {
             continue;
         }
-        vec2 delta = particles[i].position - particles[j].position;
+        vec2 delta = position[i] - position[j];
         float r = length(delta);
         if (r < SMOOTHING_LENGTH)
         {
-            pressure_force -= PARTICLE_MASS * (particles[i].pressure + particles[j].pressure) / (2.f * particles[j].density) *
+            pressure_force -= PARTICLE_MASS * (pressure[i] + pressure[j]) / (2.f * density[j]) *
             // gradient of spiky kernel
                 -45.f / (PI_FLOAT * pow(SMOOTHING_LENGTH, 6)) * pow(SMOOTHING_LENGTH - r, 2) * normalize(delta);
-            viscosity_force += PARTICLE_MASS * (particles[j].velocity - particles[i].velocity) / particles[j].density *
+            viscosity_force += PARTICLE_MASS * (velocity[j] - velocity[i]) / density[j] *
             // Laplacian of viscosity kernel
                 45.f / (PI_FLOAT * pow(SMOOTHING_LENGTH, 6)) * (SMOOTHING_LENGTH - r);
         }
     }
     viscosity_force *= PARTICLE_VISCOSITY;
-    vec2 external_force = particles[i].density * GRAVITY_FORCE;
+    vec2 external_force = density[i] * GRAVITY_FORCE;
 
-    particles[i].force = pressure_force + viscosity_force + external_force;
+    force[i] = pressure_force + viscosity_force + external_force;
 }
