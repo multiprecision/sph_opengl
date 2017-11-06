@@ -21,13 +21,13 @@
 #include <vector>
 
 // constants
-#define SPH_PARTICLE_COUNT 20000
+#define SPH_NUM_PARTICLES 20000
 
 #define SPH_PARTICLE_RADIUS 0.005f
 
 #define SPH_WORK_GROUP_SIZE 128
 // work group count is the ceiling of particle count divided by work group size
-#define SPH_GROUP_COUNT ((SPH_PARTICLE_COUNT + SPH_WORK_GROUP_SIZE - 1) / SPH_WORK_GROUP_SIZE)
+#define SPH_NUM_WORK_GROUPS ((SPH_NUM_PARTICLES + SPH_WORK_GROUP_SIZE - 1) / SPH_WORK_GROUP_SIZE)
 
 namespace sph
 {

@@ -5,7 +5,7 @@
 layout (local_size_x = WORK_GROUP_SIZE) in;
 
 // constants
-#define PARTICLE_COUNT 20000
+#define NUM_PARTICLES 20000
 
 #define PI_FLOAT 3.1415927410125732421875f
 #define PARTICLE_RADIUS 0.005f
@@ -47,7 +47,7 @@ void main()
     
     // compute density
     float density_sum = 0.f;
-    for (int j = 0; j < PARTICLE_COUNT; j++)
+    for (int j = 0; j < NUM_PARTICLES; j++)
     {
         vec2 delta = position[i] - position[j];
         float r = length(delta);

@@ -246,12 +246,27 @@ void application::initialize_opengl()
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    std::vector<glm::vec2> initial_position(SPH_PARTICLE_COUNT);
+    // ssbo sizes
+    constexpr ptrdiff_t position_ssbo_size = sizeof(glm::vec2) * SPH_NUM_PARTICLES;
+    constexpr ptrdiff_t velocity_ssbo_size = sizeof(glm::vec2) * SPH_NUM_PARTICLES;
+    constexpr ptrdiff_t force_ssbo_size = sizeof(glm::vec2) * SPH_NUM_PARTICLES;
+    constexpr ptrdiff_t density_ssbo_size = sizeof(float) * SPH_NUM_PARTICLES;
+    constexpr ptrdiff_t pressure_ssbo_size = sizeof(float) * SPH_NUM_PARTICLES;
+
+    constexpr ptrdiff_t packed_buffer_size = position_ssbo_size + velocity_ssbo_size + force_ssbo_size + density_ssbo_size + pressure_ssbo_size;
+    // ssbo offsets
+    constexpr ptrdiff_t position_ssbo_offset = 0;
+    constexpr ptrdiff_t velocity_ssbo_offset = position_ssbo_size;
+    constexpr ptrdiff_t force_ssbo_offset = velocity_ssbo_offset + velocity_ssbo_size;
+    constexpr ptrdiff_t density_ssbo_offset = force_ssbo_offset + force_ssbo_size;
+    constexpr ptrdiff_t pressure_ssbo_offset = density_ssbo_offset + density_ssbo_size;
+
+    std::vector<glm::vec2> initial_position(SPH_NUM_PARTICLES);
 
     // test case 1
     if (scene_id == 0)
     {
-        for (auto i = 0, x = 0, y = 0; i < SPH_PARTICLE_COUNT; i++)
+        for (auto i = 0, x = 0, y = 0; i < SPH_NUM_PARTICLES; i++)
         {
             initial_position[i].x = -0.625f + SPH_PARTICLE_RADIUS * 2 * x;
             initial_position[i].y = 1 - SPH_PARTICLE_RADIUS * 2 * y;
@@ -266,7 +281,7 @@ void application::initialize_opengl()
     // test case 2
     else
     {
-        for (auto i = 0, x = 0, y = 0; i < SPH_PARTICLE_COUNT; i++)
+        for (auto i = 0, x = 0, y = 0; i < SPH_NUM_PARTICLES; i++)
         {
             initial_position[i].x = -1 + SPH_PARTICLE_RADIUS * 2 * x;
             initial_position[i].y = -1 + SPH_PARTICLE_RADIUS * 2 * y;
@@ -278,12 +293,12 @@ void application::initialize_opengl()
             }
         }
     }
-    void* initial_data = std::malloc(3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT);
-    std::memset(initial_data, 0, 3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT);
-    std::memcpy(initial_data, initial_position.data(), sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
+    void* initial_data = std::malloc(packed_buffer_size);
+    std::memset(initial_data, 0, packed_buffer_size);
+    std::memcpy(initial_data, initial_position.data(), position_ssbo_size);
     glGenBuffers(1, &packed_particles_buffer_handle);
     glBindBuffer(GL_SHADER_STORAGE_BUFFER, packed_particles_buffer_handle);
-    glBufferStorage(GL_SHADER_STORAGE_BUFFER, 3 * sizeof(glm::vec2) * SPH_PARTICLE_COUNT + 2 * sizeof(float) * SPH_PARTICLE_COUNT, initial_data, GL_DYNAMIC_STORAGE_BIT);
+    glBufferStorage(GL_SHADER_STORAGE_BUFFER, packed_buffer_size, initial_data, GL_DYNAMIC_STORAGE_BIT);
     std::free(initial_data);
 
     glGenVertexArrays(1, &particle_position_vao_handle);
@@ -298,19 +313,12 @@ void application::initialize_opengl()
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
-    // offsets
-    constexpr ptrdiff_t position_offset = 0;
-    constexpr ptrdiff_t velocity_offset = sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
-    constexpr ptrdiff_t force_offset = velocity_offset + sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
-    constexpr ptrdiff_t density_offset = force_offset + sizeof(glm::vec2) * SPH_PARTICLE_COUNT;
-    constexpr ptrdiff_t pressure_offset = density_offset + sizeof(float) * SPH_PARTICLE_COUNT;
-
     // bindings
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, packed_particles_buffer_handle, position_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, packed_particles_buffer_handle, velocity_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, packed_particles_buffer_handle, force_offset, sizeof(glm::vec2) * SPH_PARTICLE_COUNT);
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 3, packed_particles_buffer_handle, density_offset, sizeof(float) * SPH_PARTICLE_COUNT);
-    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 4, packed_particles_buffer_handle, pressure_offset, sizeof(float) * SPH_PARTICLE_COUNT);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 0, packed_particles_buffer_handle, position_ssbo_offset, position_ssbo_size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 1, packed_particles_buffer_handle, velocity_ssbo_offset, velocity_ssbo_size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 2, packed_particles_buffer_handle, force_ssbo_offset, force_ssbo_size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 3, packed_particles_buffer_handle, density_ssbo_offset, density_ssbo_size);
+    glBindBufferRange(GL_SHADER_STORAGE_BUFFER, 4, packed_particles_buffer_handle, pressure_ssbo_offset, pressure_ssbo_size);
 
     glBindVertexArray(particle_position_vao_handle);
 
@@ -407,7 +415,7 @@ void application::main_loop()
     title.precision(3);
     title.setf(std::ios_base::fixed, std::ios_base::floatfield);
     title << "SPH Simulation (OpenGL) | "
-        "particle count: " << SPH_PARTICLE_COUNT << " | "
+        "particle count: " << SPH_NUM_PARTICLES << " | "
         "frame " << frame_number << " | "
         "frame time: " << 1e-6 * total_frame_time_ns << " ms | ";
     glfwSetWindowTitle(window, title.str().c_str());
@@ -416,13 +424,13 @@ void application::main_loop()
 void application::run_simulation()
 {
     glUseProgram(compute_program_handle[0]);
-    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glDispatchCompute(SPH_NUM_WORK_GROUPS, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glUseProgram(compute_program_handle[1]);
-    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glDispatchCompute(SPH_NUM_WORK_GROUPS, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     glUseProgram(compute_program_handle[2]);
-    glDispatchCompute(SPH_GROUP_COUNT, 1, 1);
+    glDispatchCompute(SPH_NUM_WORK_GROUPS, 1, 1);
     glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 }
 
@@ -430,7 +438,7 @@ void application::render()
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glUseProgram(render_program_handle);
-    glDrawArrays(GL_POINTS, 0, SPH_PARTICLE_COUNT);
+    glDrawArrays(GL_POINTS, 0, SPH_NUM_PARTICLES);
 }
 
 } // namespace sph

@@ -5,7 +5,7 @@
 layout (local_size_x = WORK_GROUP_SIZE) in;
 
 // constants
-#define PARTICLE_COUNT 20000
+#define NUM_PARTICLES 20000
 
 #define PI_FLOAT 3.1415927410125732421875f
 #define PARTICLE_RADIUS 0.005f
@@ -52,7 +52,7 @@ void main()
     vec2 pressure_force = vec2(0, 0);
     vec2 viscosity_force = vec2(0, 0);
     
-    for (uint j = 0; j < PARTICLE_COUNT; j++)
+    for (uint j = 0; j < NUM_PARTICLES; j++)
     {
         if (i == j)
         {
