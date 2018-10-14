@@ -5,6 +5,7 @@
 ![Build status](https://ci.appveyor.com/api/projects/status/bdmh929h1m7ir32l/branch/master?svg=true)
 
 Smoothed Particle Hydrodynamics implementation in OpenGL compute shader.
+Licensed under MIT License.
 
 Third-party libraries:
 
