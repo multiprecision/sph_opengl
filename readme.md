@@ -7,6 +7,11 @@
 Smoothed Particle Hydrodynamics implementation in OpenGL compute shader.
 Licensed under MIT License.
 
+Precautions :
+1. Download vs2017
+2. Download the latest graphics driver, Support gl4.6
+3. Manual compilation of shader by glslangvalidator https://vulkan.lunarg.com/sdk/home
+
 Third-party libraries:
 
 1. GLEW/OpenGL Loader https://github.com/nigels-com/glew
