@@ -7,7 +7,7 @@
 Smoothed Particle Hydrodynamics implementation in OpenGL compute shader.
 Licensed under MIT License.
 
-## Quickstart guide
+## 1) Quickstart guide
 
 1. Install [Visual Studio 2017](https://visualstudio.microsoft.com/).
 2. Install the latest graphics driver with OpenGL 4.6 support.
@@ -15,16 +15,16 @@ Licensed under MIT License.
 4. Install [Python 3](https://www.python.org/downloads/) to run shader compilation script.
 5. Run shader/compile.py to compile shaders.
 
-## Third-party libraries
+## 2) Third-party libraries
 
 1. GLEW/OpenGL Loader https://github.com/nigels-com/glew
 2. GLFW https://github.com/glfw/glfw
 3. GLM https://github.com/g-truc/glm
 
-## Video
+## 3) Video
 
 https://www.youtube.com/watch?v=4LnaZmim81k
 
-## Vulkan version
+## 4) Vulkan version
 
 https://github.com/multiprecision/sph_vulkan
