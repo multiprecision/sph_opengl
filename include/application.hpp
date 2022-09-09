@@ -20,8 +20,7 @@
 
 #pragma once
 
-#define GLEW_STATIC
-#include <gl/glew.h>
+#include <gl/gl3w.h>
 #include <glfw/glfw3.h>
 
 #define GLM_FORCE_RADIANS

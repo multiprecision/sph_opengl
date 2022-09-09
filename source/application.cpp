@@ -33,9 +33,9 @@
 #ifdef _DEBUG
 void APIENTRY gl_debug_callback(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar* msg, const void* data)
 {
-    char* source_str;
-    char* type_str;
-    char* severity_str;
+    const char* source_str;
+    const char* type_str;
+    const char* severity_str;
 
     switch (source)
     {
@@ -210,13 +210,12 @@ void application::initialize_window()
 
 void application::initialize_opengl()
 {
-    glewInit();
-
-    if (!glewIsSupported("GL_VERSION_4_6"))
-    {
-        throw std::runtime_error("need opengl 4.6 core");
+    if (gl3wInit()) {
+        throw std::runtime_error("failed to initialize OpenGL");
     }
-
+    if (!gl3wIsSupported(4, 6)) {
+        throw std::runtime_error("OpenGL 4.6 is not supported");
+    }
     // get version info 
     std::cout << "[INFO] OpenGL vendor: " << glGetString(GL_VENDOR) << std::endl << "[INFO] OpenGL renderer: " << glGetString(GL_RENDERER) << std::endl << "[INFO] OpenGL version: " << glGetString(GL_VERSION) << std::endl;
 
@@ -228,8 +227,8 @@ void application::initialize_opengl()
 #endif
     glEnable(GL_VERTEX_PROGRAM_POINT_SIZE);
 
-    uint32_t vertex_shader_handle = compile_shader("../shader/particle.vert.spv", GL_VERTEX_SHADER);
-    uint32_t fragment_shader_handle = compile_shader("../shader/particle.frag.spv", GL_FRAGMENT_SHADER);
+    uint32_t vertex_shader_handle = compile_shader("particle.vert.spv", GL_VERTEX_SHADER);
+    uint32_t fragment_shader_handle = compile_shader("particle.frag.spv", GL_FRAGMENT_SHADER);
     render_program_handle = glCreateProgram();
     glAttachShader(render_program_handle, fragment_shader_handle);
     glAttachShader(render_program_handle, vertex_shader_handle);
@@ -240,21 +239,21 @@ void application::initialize_opengl()
     glDeleteShader(fragment_shader_handle);
 
     uint32_t compute_shader_handle;
-    compute_shader_handle = compile_shader("../shader/compute_density_pressure.comp.spv", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("compute_density_pressure.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[0] = glCreateProgram();
     glAttachShader(compute_program_handle[0], compute_shader_handle);
     glLinkProgram(compute_program_handle[0]);
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    compute_shader_handle = compile_shader("../shader/compute_force.comp.spv", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("compute_force.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[1] = glCreateProgram();
     glAttachShader(compute_program_handle[1], compute_shader_handle);
     glLinkProgram(compute_program_handle[1]);
     check_program_linked(render_program_handle);
     glDeleteShader(compute_shader_handle);
 
-    compute_shader_handle = compile_shader("../shader/integrate.comp.spv", GL_COMPUTE_SHADER);
+    compute_shader_handle = compile_shader("integrate.comp.spv", GL_COMPUTE_SHADER);
     compute_program_handle[2] = glCreateProgram();
     glAttachShader(compute_program_handle[2], compute_shader_handle);
     glLinkProgram(compute_program_handle[2]);
